@@ -1,7 +1,5 @@
 # Các file build của ESP-IDF
 build/
-sdkconfig
-sdkconfig.old
 
 # Các file tạm của trình biên dịch và hệ thống
 *.o
@@ -11,8 +9,5 @@ sdkconfig.old
 *.elf
 *.map
 
-# Thư mục cấu hình IDE (tùy chọn)
 .vscode/
 .idea/
-
-*.md
