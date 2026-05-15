@@ -49,9 +49,22 @@
 
 // ========== CẤU HÌNH THỜI GIAN ==========
 #define ALERT_DURATION_MS  20000   // Báo động tự dừng sau 20s
-#define LED_BLINK_PERIOD  1000    // LED blink 1s周期
-#define SOS_HOLD_TIME_MS  3000    // Giữ nút 3s để trigger SOS
-#define DEBOUNCE_TIME_MS  50      // Debounce 50ms
+#define LED_BLINK_PERIOD    1000    // LED blink 1s
+#define LED_ERROR_BLINK_PERIOD 200   // LED blink nhanh khi lỗi
+#define SOS_HOLD_TIME_MS    3000    // Giữ nút 3s để trigger SOS
+#define DEBOUNCE_TIME_MS    50      // Debounce 50ms
+
+// ========== SYSTEM CONSTANTS ==========
+#define MPU6050_TASK_STACK      4096    // Stack size bytes
+#define MPU6050_TASK_PRIORITY  5       // Priority
+#define MPU6050_SAMPLE_RATE_MS  10      // 100Hz = 10ms
+#define BTN_TASK_STACK          2048    // Stack size bytes
+#define BTN_TASK_PRIORITY      3       // Priority
+#define GPIO_QUEUE_SIZE         20      // GPIO event queue
+#define WIFI_CONNECT_TIMEOUT_S  30      // WiFi timeout seconds
+#define CALIBRATION_SAMPLES     500     // Calibration samples
+#define CALIB_BUZZER_DURATION_MS 1000  // Buzzer beep duration
+#define MAIN_LOOP_DELAY_MS      1000    // Main loop delay
 
 // ========== TELEGRAM (SECURITY: nên chuyển sang sdkconfig) ==========
 #define TELEGRAM_BOT_TOKEN  "8659816659:AAEFwAc-LdtDNuVEGbUHt_cpOwP_ilWfSjA"
@@ -172,7 +185,7 @@ static void start_error_alert(void)
     s_alert_state = ALERT_STATE_ERROR;
 
     if (s_led_timer) {
-        xTimerChangePeriod(s_led_timer, pdMS_TO_TICKS(200), 0);
+        xTimerChangePeriod(s_led_timer, pdMS_TO_TICKS(LED_ERROR_BLINK_PERIOD), 0);
         xTimerStart(s_led_timer, 0);
     }
 
@@ -294,7 +307,7 @@ void gpio_conf(void) {
     gpio_config(&io_conf);
 
     // Tạo queue cho GPIO events
-    gpio_queue = xQueueCreate(20, sizeof(uint32_t));
+    gpio_queue = xQueueCreate(GPIO_QUEUE_SIZE, sizeof(uint32_t));
 
     // Cài đặt ISR service
     gpio_install_isr_service(0);
@@ -302,7 +315,7 @@ void gpio_conf(void) {
     gpio_isr_handler_add(BTN_SOS_PIN, gpio_isr_handler, (void *)BTN_SOS_PIN);
 
     // Tạo button handler task
-    xTaskCreate(btn_task, "btn_task", 2048, NULL, 3, NULL);
+    xTaskCreate(btn_task, "btn_task", BTN_TASK_STACK, NULL, BTN_TASK_PRIORITY, NULL);
 
     // Cấu hình I2C
     i2c_config_t i2c_conf = {
@@ -353,10 +366,10 @@ void mpu6050_task(void *param) {
     ESP_LOGI("CALIB", "LED will blink during 5s calibration...");
 
     // LED blink trong khi calibration: 500 samples × 10ms = 5 giây
-    for (int i = 0; i < 500; i++) {
+    for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
         gpio_set_level(LED_PIN, (i % 100 < 50) ? 1 : 0);
         mpu6050_calibrate_sample(I2C_MASTER_NUM);
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(MPU6050_SAMPLE_RATE_MS));
     }
     mpu6050_calibrate_finish(acc_bias, gyro_bias);
 
@@ -367,7 +380,7 @@ void mpu6050_task(void *param) {
     // ========== BUZZER XÁC NHẬN ==========
     ESP_LOGI("CALIB", "Calibration complete!");
     gpio_set_level(BUZ_PIN, 1);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(CALIB_BUZZER_DURATION_MS));
     gpio_set_level(BUZ_PIN, 0);
     gpio_set_level(LED_PIN, 0);
 
@@ -417,7 +430,7 @@ void mpu6050_task(void *param) {
         // Cập nhật fall detection
         fall_detection_update(total_accel_g, total_gyro, pitch, roll);
 
-        vTaskDelay(pdMS_TO_TICKS(10));  // 10ms = 100Hz
+        vTaskDelay(pdMS_TO_TICKS(MPU6050_SAMPLE_RATE_MS));  // 100Hz
     }
 }
 
@@ -427,38 +440,6 @@ static void fall_alert_callback(void)
 {
     telegram_send_fall_alert();
     start_fall_alert();
-}
-
-// ========== WEBSERVER CALLBACKS ==========
-static void webserver_cancel_alert(void)
-{
-    if (s_alert_active) {
-        stop_fall_alert();
-        fall_detection_reset();
-        ESP_LOGI(TAG, "[WEB] Alert cancelled via web");
-    }
-}
-
-static void webserver_reset_system(void)
-{
-    ESP_LOGW(TAG, "[WEB] System reset via web");
-
-    stop_fall_alert();
-    stop_error_alert();
-    fall_detection_reset();
-
-    gpio_set_level(BUZ_PIN, 0);
-    gpio_set_level(LED_PIN, 0);
-
-    memset(&g_sensor_buffers[0], 0, sizeof(sensor_data_t));
-    memset(&g_sensor_buffers[1], 0, sizeof(sensor_data_t));
-
-    ESP_LOGI(TAG, "[WEB] System reset complete");
-}
-
-static bool webserver_get_wifi_status(void)
-{
-    return wifi_is_connected();
 }
 
 // ========== MAIN ==========
@@ -485,23 +466,17 @@ void app_main(void) {
     wifi_init_sta();
 
     // Tạo MPU6050 task
-    xTaskCreate(mpu6050_task, "mpu6050_task", 4096, NULL, 5, NULL);
+    xTaskCreate(mpu6050_task, "mpu6050_task", MPU6050_TASK_STACK, NULL, MPU6050_TASK_PRIORITY, NULL);
 
     ESP_LOGI(TAG, "App initialization complete - waiting for WiFi...");
 
     // Đợi WiFi kết nối
     bool wifi_connected = false;
-    for (int i = 0; i < 30; i++) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    for (int i = 0; i < WIFI_CONNECT_TIMEOUT_S; i++) {
+        vTaskDelay(pdMS_TO_TICKS(MAIN_LOOP_DELAY_MS));
         if (wifi_is_connected()) {
             ESP_LOGI(TAG, "WiFi connected, starting webserver...");
-
-            webserver_control_cb_t webserver_cbs = {
-                .cancel_alert = webserver_cancel_alert,
-                .reset_system = webserver_reset_system,
-                .get_wifi_status = webserver_get_wifi_status
-            };
-            webserver_start_with_callbacks(&webserver_cbs);
+            webserver_start();
 
             telegram_send_startup();
 
@@ -518,7 +493,7 @@ void app_main(void) {
 
     // ========== MAIN LOOP ==========
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(MAIN_LOOP_DELAY_MS));
 
         // Xử lý SOS Telegram từ main loop (không gọi trong timer callback)
         if (s_sos_telegram_pending) {
