@@ -17,6 +17,7 @@
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "telegram.h"
+#include "telegram_messages.h"
 #include "esp_crt_bundle.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -43,14 +44,6 @@ typedef enum {
     TELEGRAM_MSG_SOS,
     TELEGRAM_MSG_CANCEL
 } telegram_msg_type_t;
-
-// Tin nhắn gửi đến Telegram
-static const char* TELEGRAM_MESSAGES[] = {
-    "Thiet bi da khoi dong!\nHe thong san sang hoat dong.",
-    "CANH BAO: Phat hien nguoi bi nga!\nVui long kiem tra ngay.",
-    "SOS: Nut khan cap duoc nhan!\nHo tro dang duoc gui.",
-    "Thong bao: Cuong co kich hoat da bi huy bo."
-};
 
 // ========== HTTP EVENT HANDLER ==========
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)

@@ -54,8 +54,8 @@
 #define DEBOUNCE_TIME_MS  50      // Debounce 50ms
 
 // ========== TELEGRAM (SECURITY: nên chuyển sang sdkconfig) ==========
-#define TELEGRAM_BOT_TOKEN  "token"
-#define TELEGRAM_CHAT_ID    "chat_id"
+#define TELEGRAM_BOT_TOKEN  "8659816659:AAEFwAc-LdtDNuVEGbUHt_cpOwP_ilWfSjA"
+#define TELEGRAM_CHAT_ID    "-5239342658"
 
 static const char *TAG = "MAIN";
 
