@@ -19,14 +19,6 @@
 extern "C" {
 #endif
 
-// ========== TRẠNG THÁI CẢM BIẾN ==========
-typedef enum {
-    ORIENTATION_UNKNOWN,  // Chưa xác định
-    ORIENTATION_STAND,    // Đứng thẳng
-    ORIENTATION_SIT,      // Ngồi
-    ORIENTATION_LIE       // Nằm
-} orientation_t;
-
 // ========== TRẠNG THÁI PHÁT HIỆN NGÃ ==========
 typedef enum {
     STATE_IDLE = 0,           // Bình thường, theo dõi
@@ -51,7 +43,6 @@ typedef struct {
 typedef struct {
     bool fall_detected;
     fall_state_t current_state;
-    orientation_t current_orientation;
     float current_accel_g;
     float current_gyro_dps;
     float current_pitch;
@@ -78,7 +69,6 @@ void fall_detection_set_callback(fall_alert_callback_t callback);
 
 // Lấy trạng thái hiện tại
 fall_state_t fall_detection_get_state(void);
-orientation_t fall_detection_get_orientation(void);
 
 // Internal getters (cho webserver)
 uint8_t fall_detection_get_state_internal(void);

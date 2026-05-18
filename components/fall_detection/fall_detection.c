@@ -29,7 +29,7 @@ static SemaphoreHandle_t s_state_mutex = NULL;
 static fall_detection_config_t default_config = {
     .filter_alpha = 0.5f,           // 50% cũ + 50% mới (phản ứng nhanh)
     .accel_freefall_abs = 0.5f,     // ≤0.5g = rơi tự do
-    .accel_impact_abs = 1.5f,       // ≥1.5g = va chạm
+    .accel_impact_abs = 2.0f,       // ≥2.0g = va chạm
     .lying_angle_threshold = 70.0f, // ≥70° = nằm
     .timeout_freefall = 150,        // 150ms: rơi tự do kéo dài tối đa
     .timeout_impact_check = 1000,   // 1s sau va chạm mới kiểm tra góc
@@ -38,8 +38,6 @@ static fall_detection_config_t default_config = {
 
 // ========== BIẾN STATE ==========
 static fall_state_t current_state = STATE_IDLE;
-static orientation_t current_orientation = ORIENTATION_UNKNOWN;
-static orientation_t prev_orientation = ORIENTATION_UNKNOWN;
 static fall_detection_config_t config;
 static fall_alert_callback_t alert_callback = NULL;
 static bool alert_triggered = false;
@@ -145,8 +143,6 @@ void fall_detection_init_config(const fall_detection_config_t *cfg)
 
     if (xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
         current_state = STATE_IDLE;
-        current_orientation = ORIENTATION_UNKNOWN;
-        prev_orientation = ORIENTATION_UNKNOWN;
         alert_triggered = false;
         filtered_accel = 1.0f;
         filtered_pitch = 0.0f;
@@ -154,10 +150,6 @@ void fall_detection_init_config(const fall_detection_config_t *cfg)
         filtered_gyro = 0.0f;
         xSemaphoreGive(s_state_mutex);
     }
-
-    // Tạo timers (one-shot, tự động stop sau khi fire)
-    start_timer(&s_freefall_timer, freefall_timeout_callback, config.timeout_freefall);
-    start_timer(&s_impact_timer, impact_timeout_callback, config.timeout_impact_check);
 
     ESP_LOGI(TAG, "Fall detection initialized");
     ESP_LOGI(TAG, "  Freefall: %.2fg | Impact: %.2fg | Lying: %.1f°",
@@ -180,48 +172,40 @@ void fall_detection_update(float accel_g, float gyro_dps, float pitch, float rol
     filtered_roll = low_pass_filter(roll, filtered_roll, config.filter_alpha);
     filtered_gyro = low_pass_filter(gyro_dps, filtered_gyro, config.filter_alpha);
 
-    // max_tilt = góc nghiêng lớn nhất (không phải khoảng cách euclidean)
+    // max_tilt = góc nghiêng lớn nhất (từ giá trị đã lọc)
     float max_tilt = fmaxf(fabsf(filtered_pitch), fabsf(filtered_roll));
 
-    // Baseline = running average khi IDLE (để phát hiện thay đổi)
-    static float baseline = 1.0f;
-    static uint32_t baseline_samples = 0;
+    // Dùng raw accel cho freefall/impact (sự kiện nhanh, cần phản ứng tức thời)
+    // Dùng filtered accel cho lying detection (trạng thái ổn định)
+    float raw_accel = accel_g;
 
-    // Bảo vệ state machine bằng mutex
     if (xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         fall_state_t local_state = current_state;
 
-        // Cập nhật baseline khi đang đứng yên
-        if (local_state == STATE_IDLE && baseline_samples < 500) {
-            baseline = (baseline * 0.95f) + (filtered_accel * 0.05f);
-            baseline_samples++;
-        }
-
-        // Debug log mỗi 100 cycles (~1 giây)
         static uint32_t debug_counter = 0;
         if (++debug_counter % 100 == 0) {
-            ESP_LOGI(TAG, "Accel: %.2fg | Baseline: %.2fg | MaxTilt: %.1f° | State: %d",
-                     filtered_accel, baseline, max_tilt, local_state);
+            ESP_LOGI(TAG, "Accel: %.2fg | MaxTilt: %.1f° | State: %d",
+                     filtered_accel, max_tilt, local_state);
         }
 
         // ========== STATE MACHINE ==========
         switch (local_state) {
             case STATE_IDLE:
-                // Theo dõi rơi tự do: accel < 0.5g
-                if (filtered_accel < config.accel_freefall_abs) {
+                // Rơi tự do: dùng raw accel để phản ứng nhanh
+                if (raw_accel < config.accel_freefall_abs) {
                     current_state = STATE_FREEFALL;
                     start_timer(&s_freefall_timer, freefall_timeout_callback, config.timeout_freefall);
-                    ESP_LOGW(TAG, " -> STATE_FREEFALL (accel: %.2fg)", filtered_accel);
+                    ESP_LOGW(TAG, " -> STATE_FREEFALL (accel: %.2fg)", raw_accel);
                 }
                 break;
 
             case STATE_FREEFALL:
-                // Chờ va chạm: accel >= 1.5g
-                if (filtered_accel >= config.accel_impact_abs) {
+                // Va chạm: dùng raw accel để phản ứng nhanh
+                if (raw_accel >= config.accel_impact_abs) {
                     stop_timer(&s_freefall_timer);
                     current_state = STATE_IMPACT;
                     start_timer(&s_impact_timer, impact_timeout_callback, config.timeout_impact_check);
-                    ESP_LOGW(TAG, " -> STATE_IMPACT (accel: %.2fg)", filtered_accel);
+                    ESP_LOGW(TAG, " -> STATE_IMPACT (accel: %.2fg)", raw_accel);
                 }
                 break;
 
@@ -236,9 +220,8 @@ void fall_detection_update(float accel_g, float gyro_dps, float pitch, float rol
                         if (stable_start == 0) {
                             stable_start = xTaskGetTickCount();
                         } else if ((xTaskGetTickCount() - stable_start) * portTICK_PERIOD_MS >= config.wait_lie_down_time) {
-                            // Xác nhận ngã: góc ≥ 70° + accel ≈ 1g (ổn định)
-                            if (max_tilt >= config.lying_angle_threshold &&
-                                fabsf(filtered_accel - 1.0f) < 0.3f) {
+                            // Xác nhận ngã: accel ≈ 1g (ổn định sau ngã)
+                            if (fabsf(filtered_accel - 1.0f) < 0.3f) {
                                 current_state = STATE_SOS_TRIGGERED;
                                 alert_triggered = true;
                                 stable_start = 0;
@@ -296,7 +279,6 @@ fall_detection_result_t fall_detection_get_result(void)
     if (s_state_mutex != NULL && xSemaphoreTake(s_state_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         result.fall_detected = (current_state == STATE_SOS_TRIGGERED);
         result.current_state = current_state;
-        result.current_orientation = current_orientation;
         xSemaphoreGive(s_state_mutex);
     }
 
@@ -313,6 +295,12 @@ bool fall_detection_is_alert_triggered(void)
     return triggered;
 }
 
+// ========== GETTER ==========
+fall_state_t fall_detection_get_state(void)
+{
+    return (fall_state_t)fall_detection_get_state_internal();
+}
+
 // ========== RESET ==========
 void fall_detection_reset(void)
 {
@@ -323,8 +311,6 @@ void fall_detection_reset(void)
         filtered_pitch = 0.0f;
         filtered_roll = 0.0f;
         stable_start = 0;
-        current_orientation = ORIENTATION_UNKNOWN;
-        prev_orientation = ORIENTATION_UNKNOWN;
         xSemaphoreGive(s_state_mutex);
     }
 

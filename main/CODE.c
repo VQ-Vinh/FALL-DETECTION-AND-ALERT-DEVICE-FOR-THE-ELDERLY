@@ -173,7 +173,11 @@ static void stop_fall_alert(void)
     if (s_alert_timer) xTimerStop(s_alert_timer, 0);
 
     alert_led_off();
-    ESP_LOGI(TAG, "Fall alert stopped");
+
+    // Reset state machine để sẵn sàng phát hiện lần ngã tiếp theo
+    fall_detection_reset();
+
+    ESP_LOGI(TAG, "Fall alert stopped - system reset to IDLE");
 }
 
 // Báo động lỗi (LED blink nhanh)
@@ -429,6 +433,18 @@ void mpu6050_task(void *param) {
 
         // Cập nhật fall detection
         fall_detection_update(total_accel_g, total_gyro, pitch, roll);
+
+        // LED blink 100ms ở trạng thái WAIT_LIE_DOWN
+        static bool was_wait_lie = false;
+        bool is_wait_lie = (fall_detection_get_state_internal() == 3);
+        if (is_wait_lie) {
+            static uint32_t blk = 0;
+            blk = (blk + 1) % 10;
+            gpio_set_level(LED_PIN, blk < 5);
+        } else if (was_wait_lie) {
+            gpio_set_level(LED_PIN, 0);
+        }
+        was_wait_lie = is_wait_lie;
 
         vTaskDelay(pdMS_TO_TICKS(MPU6050_SAMPLE_RATE_MS));  // 100Hz
     }
