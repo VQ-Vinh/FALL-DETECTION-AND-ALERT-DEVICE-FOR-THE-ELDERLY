@@ -10,5 +10,5 @@
 # - esp_http_client (for HTTPS requests to Telegram API)
 
 idf_component_register(SRCS "telegram.c"
-                       INCLUDE_DIRS "." ".."
-                       REQUIRES esp_http_client tcp_transport)
+                       INCLUDE_DIRS "."
+                       REQUIRES esp_http_client mbedtls)

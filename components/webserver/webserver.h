@@ -17,7 +17,6 @@
 
 // ========== CẤU TRÚC DỮ LIỆU ==========
 typedef struct {
-    float total_accel;      // m/s²
     float total_accel_g;    // g
     float total_gyro;       // deg/s
     float roll;             // degrees

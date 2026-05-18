@@ -15,14 +15,10 @@
  *                                                              └──→ start_fall_alert() → buzzer + LED
  */
 
-#include <stdio.h>
-#include <string.h>
 #include "driver/gpio.h"
 #include "driver/i2c.h"
 #include "esp_log.h"
 #include "esp_err.h"
-#include "esp_event.h"
-#include "esp_netif.h"
 #include "nvs_flash.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -48,10 +44,11 @@
 #define BTN_SOS_PIN     6       // Nút SOS giữ 3s (input, pull-up)
 
 // ========== CẤU HÌNH THỜI GIAN ==========
-#define ALERT_DURATION_MS  20000   // Báo động tự dừng sau 20s
+#define ALERT_DURATION_MS  30000   // Báo động tự dừng sau 30s
 #define LED_BLINK_PERIOD    1000    // LED blink 1s
 #define LED_ERROR_BLINK_PERIOD 200   // LED blink nhanh khi lỗi
 #define SOS_HOLD_TIME_MS    3000    // Giữ nút 3s để trigger SOS
+#define CANCEL_HOLD_TIME_MS 3000    // Giữ nút 3s để hủy báo động giả
 #define DEBOUNCE_TIME_MS    50      // Debounce 50ms
 
 // ========== SYSTEM CONSTANTS ==========
@@ -86,19 +83,22 @@ static alert_state_t s_alert_state = ALERT_STATE_IDLE;
 static TimerHandle_t s_alert_timer = NULL;   // Timer tắt tự động
 static TimerHandle_t s_led_timer = NULL;      // Timer LED blink
 static TimerHandle_t s_sos_timer = NULL;      // Timer giữ nút SOS
+static TimerHandle_t s_cancel_timer = NULL;   // Timer giữ nút CANCEL
 static bool s_led_state = false;
 static bool s_alert_active = false;
 static bool s_error_state = false;
 static bool s_sos_button_held = false;        // SOS button đang được giữ
+static bool s_cancel_button_held = false;     // CANCEL button đang được giữ
 static bool s_sos_telegram_pending = false;   // Flag gửi Telegram từ main loop
+static bool s_cancel_telegram_pending = false; // Flag gửi cancel Telegram từ main loop
 static uint32_t s_last_cancel_isr = 0;        // Debounce cho CANCEL button
 static uint32_t s_last_sos_isr = 0;          // Debounce cho SOS button
 
 // ========== DOUBLE-BUFFER SENSOR DATA ==========
 // Buffer 0 và Buffer 1: writer交替写入, reader đọc buffer còn lại
 sensor_data_t g_sensor_buffers[2] = {
-    {.total_accel = 0, .total_accel_g = 0, .total_gyro = 0, .roll = 0, .pitch = 0, .data_ready = false},
-    {.total_accel = 0, .total_accel_g = 0, .total_gyro = 0, .roll = 0, .pitch = 0, .data_ready = false}
+    {.total_accel_g = 0, .total_gyro = 0, .roll = 0, .pitch = 0, .data_ready = false},
+    {.total_accel_g = 0, .total_gyro = 0, .roll = 0, .pitch = 0, .data_ready = false}
 };
 static uint8_t s_writer_index = 0;
 
@@ -239,6 +239,18 @@ static void sos_timer_callback(TimerHandle_t xTimer)
     s_sos_button_held = false;
 }
 
+// Timer callback cho CANCEL: firesau 3s giữ nút
+static void cancel_timer_callback(TimerHandle_t xTimer)
+{
+    (void)xTimer;
+    if (s_cancel_button_held && s_alert_active) {
+        s_cancel_telegram_pending = true;  // Flag để main loop gọi Telegram
+        stop_fall_alert();  // fall_detection_reset() được gọi bên trong
+        ESP_LOGW(TAG, ">>> FALSE ALARM CANCELLED (held 3s) <<<");
+    }
+    s_cancel_button_held = false;
+}
+
 // Button handler task
 static void btn_task(void *param)
 {
@@ -248,13 +260,27 @@ static void btn_task(void *param)
     while (1) {
         if (xQueueReceive(gpio_queue, &gpio_num, portMAX_DELAY)) {
             if (gpio_num == BTN_CANCEL_PIN) {
-                // Nút CANCEL: hủy báo động
-                ESP_LOGI(TAG, "Button CANCEL pressed (GPIO %lu)", gpio_num);
-                if (s_alert_active) {
-                    telegram_send_cancel_alert();
-                    stop_fall_alert();
-                    fall_detection_reset();
-                    ESP_LOGI(TAG, "False alarm cancelled");
+                // Nút CANCEL: kiểm tra press/release
+                if (gpio_get_level(BTN_CANCEL_PIN) == 0) {
+                    // Press: bắt đầu đếm 3s
+                    ESP_LOGI(TAG, "Button CANCEL pressed (GPIO %lu) - hold 3s to cancel", gpio_num);
+                    s_cancel_button_held = true;
+
+                    if (s_cancel_timer == NULL) {
+                        s_cancel_timer = xTimerCreate("cancel_timer",
+                                                      pdMS_TO_TICKS(CANCEL_HOLD_TIME_MS),
+                                                      pdFALSE, NULL, cancel_timer_callback);
+                    }
+                    if (s_cancel_timer != NULL) {
+                        xTimerReset(s_cancel_timer, 0);
+                    }
+                } else {
+                    // Release: hủy timer
+                    ESP_LOGI(TAG, "Button CANCEL released (GPIO %lu)", gpio_num);
+                    s_cancel_button_held = false;
+                    if (s_cancel_timer != NULL) {
+                        xTimerStop(s_cancel_timer, 0);
+                    }
                 }
             } else if (gpio_num == BTN_SOS_PIN) {
                 // Nút SOS: kiểm tra press/release
@@ -296,9 +322,9 @@ void gpio_conf(void) {
     };
     gpio_config(&io_conf);
 
-    // Nút CANCEL: input với pull-up,触发 ở falling edge
+    // Nút CANCEL: input với pull-up, trigger ở any edge (phát hiện press/release)
     io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.intr_type = GPIO_INTR_NEGEDGE;
+    io_conf.intr_type = GPIO_INTR_ANYEDGE;
     io_conf.pin_bit_mask = (1ULL << BTN_CANCEL_PIN);
     io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     gpio_config(&io_conf);
@@ -355,7 +381,7 @@ void mpu6050_task(void *param) {
     int16_t raw_gx, raw_gy, raw_gz;
     float accel_x, accel_y, accel_z;
     float gyro_x, gyro_y, gyro_z;
-    float acc_bias[3] = {0}, gyro_bias[3] = {0};
+    float gyro_bias[3] = {0};
 
     ret = mpu6050_init(I2C_MASTER_NUM);
     if (ret != ESP_OK) {
@@ -375,10 +401,9 @@ void mpu6050_task(void *param) {
         mpu6050_calibrate_sample(I2C_MASTER_NUM);
         vTaskDelay(pdMS_TO_TICKS(MPU6050_SAMPLE_RATE_MS));
     }
-    mpu6050_calibrate_finish(acc_bias, gyro_bias);
+    mpu6050_calibrate_finish(NULL, gyro_bias);
 
-    ESP_LOGI("CALIB", "Calibration done: accel bias [%.2f, %.2f, %.2f], gyro bias [%.2f, %.2f, %.2f]",
-             acc_bias[0], acc_bias[1], acc_bias[2],
+    ESP_LOGI("CALIB", "Calibration done: gyro bias [%.2f, %.2f, %.2f] deg/s",
              gyro_bias[0], gyro_bias[1], gyro_bias[2]);
 
     // ========== BUZZER XÁC NHẬN ==========
@@ -406,8 +431,8 @@ void mpu6050_task(void *param) {
         mpu6050_convert_accel(raw_ax, raw_ay, raw_az, &accel_x, &accel_y, &accel_z);
         mpu6050_convert_gyro(raw_gx, raw_gy, raw_gz, &gyro_x, &gyro_y, &gyro_z);
 
-        float total_accel_ms2, total_accel_g;
-        total_accel_ms2 = mpu6050_get_total_accel(accel_x, accel_y, accel_z, &total_accel_g);
+        float total_accel_g;
+        mpu6050_get_total_accel(accel_x, accel_y, accel_z, &total_accel_g);
         float total_gyro = mpu6050_get_total_gyro(gyro_x, gyro_y, gyro_z);
 
         // Tính góc roll/pitch
@@ -416,7 +441,6 @@ void mpu6050_task(void *param) {
         float pitch = get_pitch();
 
         // Ghi vào double-buffer
-        g_sensor_buffers[s_writer_index].total_accel = total_accel_ms2;
         g_sensor_buffers[s_writer_index].total_accel_g = total_accel_g;
         g_sensor_buffers[s_writer_index].total_gyro = total_gyro;
         g_sensor_buffers[s_writer_index].roll = roll;
@@ -511,10 +535,14 @@ void app_main(void) {
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(MAIN_LOOP_DELAY_MS));
 
-        // Xử lý SOS Telegram từ main loop (không gọi trong timer callback)
+        // Xử lý SOS/CANCEL Telegram từ main loop (không gọi trong timer callback)
         if (s_sos_telegram_pending) {
             s_sos_telegram_pending = false;
             telegram_send_sos_alert();
+        }
+        if (s_cancel_telegram_pending) {
+            s_cancel_telegram_pending = false;
+            telegram_send_cancel_alert();
         }
 
         // Kiểm tra WiFi

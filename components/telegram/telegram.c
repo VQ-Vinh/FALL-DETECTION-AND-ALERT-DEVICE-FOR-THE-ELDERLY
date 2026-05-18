@@ -25,6 +25,14 @@
 
 static const char *TAG = "TELEGRAM";
 
+// Danh sách tin nhắn
+static const char* TELEGRAM_MESSAGES[] = {
+    MSG_STARTUP,
+    MSG_FALL_ALERT,
+    MSG_SOS_ALERT,
+    MSG_CANCEL_ALERT
+};
+
 // Bot configuration
 static char s_bot_token[128] = {0};
 static char s_chat_id[32] = {0};
@@ -49,13 +57,15 @@ typedef enum {
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 {
     switch (evt->event_id) {
-    case HTTP_EVENT_ON_DATA:
-        if (evt->data_len < sizeof(s_response_buffer) - 1) {
-            int len = evt->data_len > 255 ? 255 : evt->data_len;
-            memcpy(s_response_buffer, evt->data, len);
-            s_response_buffer[len] = '\0';
+    case HTTP_EVENT_ON_DATA: {
+        int len = evt->data_len;
+        if (len > (int)sizeof(s_response_buffer) - 1) {
+            len = sizeof(s_response_buffer) - 1;
         }
+        memcpy(s_response_buffer, evt->data, len);
+        s_response_buffer[len] = '\0';
         break;
+    }
     case HTTP_EVENT_ERROR:
         ESP_LOGE(TAG, "HTTP error");
         break;
@@ -175,7 +185,7 @@ static void telegram_task(void *param)
     while (true) {
         // Block đợi message trong queue
         if (xQueueReceive(s_telegram_queue, &msg_type, portMAX_DELAY) == pdTRUE) {
-            if (msg_type >= 0 && msg_type <= TELEGRAM_MSG_CANCEL) {
+            if (msg_type <= TELEGRAM_MSG_CANCEL) {
                 ESP_LOGI(TAG, "Processing message type %d", msg_type);
                 send_telegram_message(TELEGRAM_MESSAGES[msg_type]);
             }

@@ -155,21 +155,6 @@ static esp_err_t send_html_response(httpd_req_t *req, const char *html, size_t l
     return httpd_resp_send(req, html, len);
 }
 
-static esp_err_t send_error_response(httpd_req_t *req, int status_code, const char *message)
-{
-    char status_str[32];
-    snprintf(status_str, sizeof(status_str), "%d %s", status_code,
-             status_code == 404 ? "Not Found" :
-             status_code == 500 ? "Internal Server Error" : "Error");
-
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_status(req, status_str);
-    set_cors_headers(req);
-    char buf[128];
-    snprintf(buf, sizeof(buf), "{\"error\":\"%s\"}", message);
-    return httpd_resp_send(req, buf, strlen(buf));
-}
-
 // ========== URI HANDLERS ==========
 
 // GET / - Dashboard HTML
@@ -209,10 +194,10 @@ static esp_err_t data_get_handler(httpd_req_t *req)
 
     // Build JSON response
     snprintf(buf, sizeof(buf),
-        "{\"accel\":%.2f,\"accel_g\":%.2f,\"gyro\":%.2f,\"roll\":%.2f,\"pitch\":%.2f,"
-        "\"ready\":%d,\"wifi_connected\":%d,\"alert_active\":%d,\"error_state\":0,\"uptime\":%lu,"
+        "{\"accel_g\":%.2f,\"gyro\":%.0f,\"roll\":%.1f,\"pitch\":%.1f,"
+        "\"ready\":%d,\"wifi_connected\":%d,\"alert_active\":%d,\"uptime\":%lu,"
         "\"fall_state\":%d,\"max_tilt\":%.1f,\"filt_accel\":%.2f}",
-        local_data.total_accel, local_data.total_accel_g, local_data.total_gyro,
+        local_data.total_accel_g, local_data.total_gyro,
         local_data.roll, local_data.pitch, local_data.data_ready ? 1 : 0,
         wifi_ok ? 1 : 0, (fall_state == 4) ? 1 : 0, system_uptime_sec,
         fall_state, fall_max_tilt, fall_filtered_accel);

@@ -25,12 +25,4 @@
 #define MSG_CANCEL_ALERT \
     "THÔNG BÁO: Cảnh báo đã được hủy."
 
-// Danh sách tin nhắn (không cần sửa)
-static const char* TELEGRAM_MESSAGES[] = {
-    MSG_STARTUP,
-    MSG_FALL_ALERT,
-    MSG_SOS_ALERT,
-    MSG_CANCEL_ALERT
-};
-
 #endif // TELEGRAM_MESSAGES_H
