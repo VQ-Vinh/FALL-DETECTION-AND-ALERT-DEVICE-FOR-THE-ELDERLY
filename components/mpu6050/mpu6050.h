@@ -45,11 +45,8 @@ void mpu6050_convert_gyro(int16_t raw_x, int16_t raw_y, int16_t raw_z,
                           float *gyro_x, float *gyro_y, float *gyro_z);
 
 // ========== HIỆU CHUẨN ==========
-// Phương thức 1: Blocking calibration (500 mẫu)
-void mpu6050_calibrate(i2c_port_t i2c_num, float *accel_bias, float *gyro_bias);
-
-// Phương thức 2: Two-phase calibration (gọi từng mẫu)
-// Bước 1: Gọi calibrate_sample() N lần trong vòng lặp (LED blink)
+// Two-phase calibration:
+// Bước 1: Gọi calibrate_sample() N lần (LED blink)
 // Bước 2: Gọi calibrate_finish() để hoàn thành
 void mpu6050_calibrate_sample(i2c_port_t i2c_num);
 void mpu6050_calibrate_finish(float *accel_bias_out, float *gyro_bias_out);

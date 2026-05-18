@@ -13,8 +13,6 @@
 #ifndef ROLL_PITCH_H
 #define ROLL_PITCH_H
 
-#include "driver/i2c.h"
-#include "esp_err.h"
 #include "mpu6050_constants.h"
 
 // Khởi tạo góc về 0

@@ -9,7 +9,6 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include <stdio.h>
 #include <math.h>
 
 // Các thanh ghi cấu hình
@@ -123,68 +122,21 @@ void mpu6050_convert_gyro(int16_t raw_x, int16_t raw_y, int16_t raw_z,
 
 // ========== HIỆU CHUẨN ==========
 // Biến tích lũy cho two-phase calibration
-static float calib_accel_sum[3] = {0};
 static float calib_gyro_sum[3] = {0};
 static int calib_sample_count = 0;
-
-// Blocking calibration (500 mẫu)
-void mpu6050_calibrate(i2c_port_t i2c_num, float *accel_bias_out, float *gyro_bias_out) {
-    calib_accel_sum[0] = calib_accel_sum[1] = calib_accel_sum[2] = 0;
-    calib_gyro_sum[0] = calib_gyro_sum[1] = calib_gyro_sum[2] = 0;
-    calib_sample_count = 0;
-
-    int16_t accel_x, accel_y, accel_z;
-    int16_t gyro_x, gyro_y, gyro_z;
-    float accel_x_g, accel_y_g, accel_z_g;
-    float gyro_x_dps, gyro_y_dps, gyro_z_dps;
-
-    const int samples = 500;
-
-    for (int i = 0; i < samples; i++) {
-        mpu6050_read_raw_data(i2c_num, &accel_x, &accel_y, &accel_z, &gyro_x, &gyro_y, &gyro_z);
-
-        accel_x_g = (accel_x / MPU6050_ACC_SCALE) * MPU6050_GRAVITY;
-        accel_y_g = (accel_y / MPU6050_ACC_SCALE) * MPU6050_GRAVITY;
-        accel_z_g = (accel_z / MPU6050_ACC_SCALE) * MPU6050_GRAVITY;
-
-        gyro_x_dps = (gyro_x / MPU6050_GYRO_SCALE);
-        gyro_y_dps = (gyro_y / MPU6050_GYRO_SCALE);
-        gyro_z_dps = (gyro_z / MPU6050_GYRO_SCALE);
-
-        calib_accel_sum[0] += accel_x_g;
-        calib_accel_sum[1] += accel_y_g;
-        calib_accel_sum[2] += accel_z_g;
-        calib_gyro_sum[0] += gyro_x_dps;
-        calib_gyro_sum[1] += gyro_y_dps;
-        calib_gyro_sum[2] += gyro_z_dps;
-        calib_sample_count++;
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-
-    mpu6050_calibrate_finish(accel_bias_out, gyro_bias_out);
-}
 
 // Two-phase: thu thập 1 mẫu
 void mpu6050_calibrate_sample(i2c_port_t i2c_num) {
     int16_t accel_x, accel_y, accel_z;
     int16_t gyro_x, gyro_y, gyro_z;
-    float accel_x_g, accel_y_g, accel_z_g;
     float gyro_x_dps, gyro_y_dps, gyro_z_dps;
 
     mpu6050_read_raw_data(i2c_num, &accel_x, &accel_y, &accel_z, &gyro_x, &gyro_y, &gyro_z);
-
-    accel_x_g = (accel_x / MPU6050_ACC_SCALE) * MPU6050_GRAVITY;
-    accel_y_g = (accel_y / MPU6050_ACC_SCALE) * MPU6050_GRAVITY;
-    accel_z_g = (accel_z / MPU6050_ACC_SCALE) * MPU6050_GRAVITY;
 
     gyro_x_dps = (gyro_x / MPU6050_GYRO_SCALE);
     gyro_y_dps = (gyro_y / MPU6050_GYRO_SCALE);
     gyro_z_dps = (gyro_z / MPU6050_GYRO_SCALE);
 
-    calib_accel_sum[0] += accel_x_g;
-    calib_accel_sum[1] += accel_y_g;
-    calib_accel_sum[2] += accel_z_g;
     calib_gyro_sum[0] += gyro_x_dps;
     calib_gyro_sum[1] += gyro_y_dps;
     calib_gyro_sum[2] += gyro_z_dps;
@@ -195,34 +147,29 @@ void mpu6050_calibrate_sample(i2c_port_t i2c_num) {
 void mpu6050_calibrate_finish(float *accel_bias_out, float *gyro_bias_out) {
     if (calib_sample_count == 0) return;
 
-    float a_bias[3] = {0.0f, 0.0f, 0.0f};  // Accel bias = 0 (gravity luôn hiện diện)
-    float g_bias[3];
-
     // Gyro bias = trung bình (gyro = 0 khi đứng yên)
-    g_bias[0] = calib_gyro_sum[0] / calib_sample_count;
-    g_bias[1] = calib_gyro_sum[1] / calib_sample_count;
-    g_bias[2] = calib_gyro_sum[2] / calib_sample_count;
+    gyro_bias[0] = calib_gyro_sum[0] / calib_sample_count;
+    gyro_bias[1] = calib_gyro_sum[1] / calib_sample_count;
+    gyro_bias[2] = calib_gyro_sum[2] / calib_sample_count;
 
-    if (accel_bias_out) {
-        accel_bias_out[0] = a_bias[0];
-        accel_bias_out[1] = a_bias[1];
-        accel_bias_out[2] = a_bias[2];
-    }
     if (gyro_bias_out) {
-        gyro_bias_out[0] = g_bias[0];
-        gyro_bias_out[1] = g_bias[1];
-        gyro_bias_out[2] = g_bias[2];
+        gyro_bias_out[0] = gyro_bias[0];
+        gyro_bias_out[1] = gyro_bias[1];
+        gyro_bias_out[2] = gyro_bias[2];
     }
 
-    accel_bias[0] = a_bias[0];
-    accel_bias[1] = a_bias[1];
-    accel_bias[2] = a_bias[2];
-    gyro_bias[0] = g_bias[0];
-    gyro_bias[1] = g_bias[1];
-    gyro_bias[2] = g_bias[2];
+    // Accel bias = 0 (gravity luôn hiện diện, không thể tách riêng)
+    accel_bias[0] = accel_bias[1] = accel_bias[2] = 0.0f;
+    if (accel_bias_out) {
+        accel_bias_out[0] = accel_bias_out[1] = accel_bias_out[2] = 0.0f;
+    }
+
+    // Reset counters cho lần hiệu chuẩn sau
+    calib_gyro_sum[0] = calib_gyro_sum[1] = calib_gyro_sum[2] = 0;
+    calib_sample_count = 0;
 
     ESP_LOGI("MPU6050", "Calibration done: gyro_bias=[%.2f, %.2f, %.2f] deg/s",
-             g_bias[0], g_bias[1], g_bias[2]);
+             gyro_bias[0], gyro_bias[1], gyro_bias[2]);
 }
 
 // ========== TÍNH TỔNG ==========
