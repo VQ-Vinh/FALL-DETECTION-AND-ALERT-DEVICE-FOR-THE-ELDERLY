@@ -1,0 +1,19 @@
+menu "Telegram Bot Configuration"
+
+    config TELEGRAM_BOT_TOKEN
+        string "Telegram Bot Token"
+        default "8659816659:AAEFwAc-LdtDNuVEGbUHt_cpOwP_ilWfSjA"
+        help
+            Token của Telegram Bot, lấy từ @BotFather.
+            Định dạng: "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz-1234567"
+            Cảnh báo: Không commit token này lên git public!
+
+    config TELEGRAM_CHAT_ID
+        string "Telegram Chat ID"
+        default "-5239342658"
+        help
+            ID của chat (người nhận) trên Telegram.
+            Có thể lấy từ @userinfobot hoặc gọi getUpdates API.
+            Định dạng: "1234567890" hoặc "-1234567890" (cho group).
+
+endmenu

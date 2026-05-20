@@ -82,12 +82,8 @@
 #define CALIB_BUZZER_DURATION_MS 1000
 #define MAIN_LOOP_DELAY_MS      1000
 
-// =========================== CẤU HÌNH TELEGRAM =============================
-// WARNING: Nhúng token vào mã nguồn là rủi ro bảo mật. Nên chuyển vào
-// sdkconfig hoặc NVS trong phiên bản sản xuất.
-// ============================================================================
-#define TELEGRAM_BOT_TOKEN  "8659816659:AAEFwAc-LdtDNuVEGbUHt_cpOwP_ilWfSjA"
-#define TELEGRAM_CHAT_ID    "-5239342658"
+// Token và Chat ID Telegram — cấu hình qua idf.py menuconfig
+// (Kconfig.projbuild → CONFIG_TELEGRAM_BOT_TOKEN, CONFIG_TELEGRAM_CHAT_ID)
 
 // =========================== BIẾN TOÀN CỤC =================================
 static const char *TAG = "MAIN";
@@ -535,7 +531,7 @@ void app_main(void) {
     ESP_LOGI(TAG, "======== SYSTEM START ========");
     gpio_conf();
 
-    telegram_init(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID);
+    telegram_init(CONFIG_TELEGRAM_BOT_TOKEN, CONFIG_TELEGRAM_CHAT_ID);
 
     fall_detection_init();
     fall_detection_set_callback(fall_alert_callback);

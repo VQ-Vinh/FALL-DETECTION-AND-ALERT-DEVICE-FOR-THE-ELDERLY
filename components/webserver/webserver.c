@@ -295,7 +295,7 @@ static esp_err_t status_get_handler(httpd_req_t *req)
 }
 
 /*
- * OPTIONS /api/* — CORS preflight.
+ * OPTIONS /api/ * — CORS preflight.
  * Browser gửi request này trước cross-origin request để hỏi server
  * có cho phép không. Trả về 204 + CORS headers.
  */
@@ -362,7 +362,7 @@ static const httpd_uri_t uri_options_all = {
  * cbs bị bỏ qua (read-only mode — không nhận lệnh điều khiển từ client).
  * Nếu httpd_start OK, đăng ký 6 handlers:
  *   GET /, GET /api/data, GET /api/status, GET /favicon.ico,
- *   OPTIONS /api/data, OPTIONS /api/*
+ *   OPTIONS /api/data, OPTIONS /api/ *
  */
 void webserver_start_with_callbacks(const void *cbs)
 {
