@@ -1,36 +1,46 @@
-/**
- * @file wifi.c
- * @brief Module quản lý kết nối WiFi (Station mode) và đồng bộ thời gian NTP
+/*
+ * wifi.c - Kết nối WiFi (Station) và đồng bộ NTP
  *
- * ===================== CHỨC NĂNG CHÍNH =====================
- * 1. Kết nối WiFi ở chế độ Station (client) - ESP32 kết nối vào router
- * 2. Tự động reconnect khi mất kết nối (timer retry 10s, vô hạn)
- * 3. Đồng bộ thời gian qua NTP (Network Time Protocol)
- * 4. Cài đặt múi giờ ICT (Indochina Time, UTC+7 - Việt Nam)
+ * Module này cho ESP32 đóng vai trò WiFi client (Station) — kết nối vào
+ * router như điện thoại/laptop. Sau khi có IP, tự động đồng bộ thời gian
+ * qua NTP để các module khác (cảm biến, Telegram) có timestamp giờ Việt Nam.
  *
- * ===================== KIẾN TRÚC SỰ KIỆN (EVENT-DRIVEN) =====================
- * Hệ thống dùng event loop của ESP-IDF. Các sự kiện WiFi được đăng ký
- * trong wifi_init_sta() và xử lý trong wifi_event_handler():
+ * ===================== KIẾN TRÚC EVENT-DRIVEN =====================
+ * ESP-IDF quản lý WiFi qua event loop. Khi stack có chuyển biến (khởi động
+ * xong, kết nối/mất kết nối, có IP,...), nó phát sự kiện. Một handler duy
+ * nhất (wifi_event_handler) phản ứng với từng loại.
  *
- *   WIFI_EVENT_STA_START       -> Gọi esp_wifi_connect() lần đầu
- *   WIFI_EVENT_STA_CONNECTED    -> Đánh dấu đã kết nối, dừng retry timer
- *   WIFI_EVENT_STA_DISCONNECTED -> Đánh dấu mất kết nối, start retry timer
- *   IP_EVENT_STA_GOT_IP        -> Có IP -> khởi tạo SNTP + đồng bộ thời gian
+ * Chọn event-driven thay vì polling vì:
+ *   - CPU chỉ hoạt động khi có sự kiện, không tốn vòng lặp vô ích
+ *   - Phản ứng tức thời, không cần delay/poll định kỳ
+ *   - Event loop chạy task riêng, không ảnh hưởng task khác
+ *
+ * Chuỗi sự kiện boot điển hình:
+ *   wifi_init_sta() → esp_wifi_start()
+ *     → WIFI_EVENT_STA_START      → esp_wifi_connect()
+ *     → WIFI_EVENT_STA_CONNECTED  → set connected flag, stop retry timer
+ *     → IP_EVENT_STA_GOT_IP       → start SNTP, sync time
  *
  * ===================== CƠ CHẾ RETRY =====================
- * - Khi mất kết nối: timer one-shot 10s được tạo
- * - Timer fire: gọi esp_wifi_connect() thử lại
- * - Nếu thành công: timer bị hủy (xTimerStop)
- * - Nếu vẫn lỗi: timer fire lại (one-shot nên chỉ chạy 1 lần, nhưng
- *   event DISCONNECTED lại được gọi và tạo timer mới)
- * - Retry vô hạn (không giới hạn số lần thử)
+ * IoT device KHÔNG ĐƯỢC PHÉP BỎ CUỘC. Nếu mất kết nối, module retry
+ * vô hạn định, mỗi lần cách nhau 10 giây (WIFI_RETRY_INTERVAL_MS).
+ *
+ * Thay vì gọi esp_wifi_connect() ngay trong event handler (có thể spam),
+ * dùng FreeRTOS timer one-shot: mất kết nối → start timer 10s → timer fire
+ * → gọi connect. Timer là one-shot nên chỉ fire 1 lần, nhưng event
+ * DISCONNECTED sẽ được gọi lại và tạo timer mới nếu vẫn lỗi.
+ *
+ * Tại sao timer?
+ *   - Event handler phải trả về nhanh, không gọi connect trực tiếp
+ *   - Giãn cách retry, không spam AP khi sóng yếu
+ *   - Dễ stop/hủy khi kết nối thành công
  *
  * ===================== NTP TIME SYNC =====================
- * - Khi có IP (GOT_IP), khởi tạo SNTP client
- * - SNTP poll server pool.ntp.org để lấy thời gian
- * - Đồng bộ trong vòng 5 giây (10 lần thử, mỗi lần 500ms)
- * - Ngưỡng: thời gian > 01/01/2021 (1609451200) là hợp lệ
- * - Sau sync: in thời gian hiện tại (theo múi giờ ICT)
+ * Khi có IP, khởi tạo SNTP client polling pool.ntp.org.
+ * Chờ tối đa 5 giây (10 lần × 500ms) để timestamp > 01/01/2021
+ * (ngưỡng này phân biệt RTC đã sync với giá trị mặc định từ boot).
+ * Nếu quá 5 giây chưa sync được, bỏ qua — thiết bị vẫn chạy, chỉ thiếu
+ * timestamp chính xác. localtime() trả về giờ ICT nhờ set_timezone().
  */
 
 #include <string.h>
@@ -43,56 +53,32 @@
 #include "sys/time.h"         /* time(), struct timeval, timezone */
 #include "lwip/apps/sntp.h"   /* SNTP (Simple NTP) client */
 
-/* Tag cho ESP_LOG (hiển thị tiền tố [WIFI]) */
 static const char *TAG = "WIFI";
 
-/*
- * Biến đếm số lần retry hiện tại.
- * Reset về 0 khi kết nối thành công.
- * Dùng để log số lần thử, không giới hạn retry (reset khi đạt MAX_RETRY).
- */
+/* Đếm retry: dùng để log. Reset mỗi khi connected. Khi >= MAX_RETRY thì reset về 0 (vòng lặp mới) */
 static int s_retry_num = 0;
 
-/* Cờ trạng thái kết nối WiFi. True = đã kết nối, False = mất kết nối. */
+/* true khi có link-layer với AP. Chưa chắc có IP (DHCP chưa xong) */
 static bool s_wifi_connected = false;
 
 /*
- * ===================== TIMER RETRY =====================
- *
- * Timer one-shot (pdFALSE): chỉ fire một lần sau mỗi lần start.
- * Khi mất kết nối (DISCONNECTED event), timer được start với thời gian
- * WIFI_RETRY_INTERVAL_MS (10 giây). Khi timer fire, gọi esp_wifi_connect().
- *
- * Tại sao dùng timer thay vì loop?
- *   - Tiết kiệm CPU: timer chỉ chạy khi cần retry
- *   - Không block event handler: chỉ start timer, không gọi connect trực tiếp
- *   - Dễ quản lý: stop khi kết nối thành công
+ * Timer one-shot (pdFALSE) cho retry.
+ * Không gọi esp_wifi_connect() trực tiếp trong event handler vì:
+ *   - Event handler phải trả về nhanh
+ *   - Cần giãn cách retry tránh spam AP
+ *   - Dễ dừng khi connected
  */
 static TimerHandle_t s_retry_timer = NULL;
 
-/*
- * ===================== CẤU HÌNH NTP =====================
- *
- * NTP_SERVER: Server NTP mặc định (pool.ntp.org - bộ cân tải NTP toàn cầu).
- * Có thể thay bằng server địa phương như "vn.pool.ntp.org" để nhanh hơn.
- *
- * TZ_STRING: Chuỗi định nghĩa múi giờ theo POSIX.
- *   "ICT-7": Indochina Time, UTC-7 (lưu ý: POSIX ngược dấu với UTC offset).
- *   Thực tế UTC+7 = ICT (Việt Nam, Thái Lan, Campuchia, Lào).
- *   Có thể thay bằng "VNT-7" nhưng ICT là chuẩn hơn.
- */
+/* NTP_SERVER: pool.ntp.org (cân tải toàn cầu). Có thể đổi thành vn.pool.ntp.org */
 static const char *NTP_SERVER = "pool.ntp.org";
-static const char *TZ_STRING = "ICT-7";  /* Múi giờ Đông Dương (UTC+7) */
+/* Múi giờ POSIX: "ICT-7" là UTC+7 (POSIX ngược dấu). Cho localtime() trả về giờ VN */
+static const char *TZ_STRING = "ICT-7";
 
 /*
- * set_timezone - Thiết lập múi giờ cho hệ thống.
- *
- * Sử dụng biến môi trường TZ (POSIX standard):
- *   setenv("TZ", "ICT-7", 1): đặt múi giờ
- *   tzset(): áp dụng thay đổi
- *
- * Lưu ý: POSIX TZ string dùng dấu ngược (UTC-7 = UTC+7 thực tế).
- * Gọi hàm này TRƯỚC khi sync NTP để localtime() trả về đúng giờ Việt Nam.
+ * Đặt biến môi trường TZ để localtime() trả về giờ Việt Nam (UTC+7).
+ * POSIX TZ string ngược dấu: "ICT-7" nghĩa là UTC+7.
+ * Gọi TRƯỚC sync NTP.
  */
 static void set_timezone(void)
 {
@@ -102,29 +88,17 @@ static void set_timezone(void)
 }
 
 /*
- * wifi_is_connected - Kiểm tra trạng thái kết nối WiFi.
- *
- * @return: true nếu đã kết nối đến AP, false nếu chưa hoặc mất kết nối.
- *
- * Được các module khác (MPU6050, Telegram) gọi để kiểm tra trước khi
- * thực hiện các tác vụ cần mạng.
+ * Các module khác (telegram, webserver) gọi hàm này để kiểm tra
+ * có nên gửi request ra mạng không.
  */
 bool wifi_is_connected(void) {
     return s_wifi_connected;
 }
 
-/* ===================== ĐỒNG BỘ THỜI GIAN NTP ===================== */
+/* ===================== NTP ===================== */
 
-/*
- * initialize_sntp - Khởi tạo SNTP client.
- *
- * Cấu hình:
- *   - SNTP_OPMODE_POLL: chế độ polling (hỏi server định kỳ)
- *   - Server: pool.ntp.org (có thể thay đổi biến NTP_SERVER)
- *   - sntp_init(): bắt quá trình đồng bộ (chạy ngầm)
- *
- * Gọi sau khi có IP (IP_EVENT_STA_GOT_IP).
- */
+/* Khởi tạo SNTP client ở chế độ poll, dùng server pool.ntp.org.
+ * Gọi sau GOT_IP — SNTP chạy ngầm, sync_time() đợi kết quả. */
 static void initialize_sntp(void)
 {
     ESP_LOGI(TAG, "Initializing SNTP...");
@@ -134,17 +108,10 @@ static void initialize_sntp(void)
 }
 
 /*
- * sync_time - Đợi đồng bộ thời gian từ NTP server.
- *
- * Quy trình:
- *   1. Chờ tối đa 5 giây (10 lần * 500ms)
- *   2. Mỗi lần: gọi time(&now) kiểm tra thời gian hiện tại
- *   3. Nếu now > 1609451200 (01/01/2021) -> coi như đã sync thành công
- *   4. In thời gian hiện tại theo định dạng YYYY-MM-DD HH:MM:SS
- *
- * Ngưỡng 1609451200: timestamp ngày 01/01/2021 00:00:00 UTC.
- * Nếu now > ngưỡng này -> RTC đã được cập nhật. Nếu chưa -> RTC vẫn là
- * thời gian mặc định của ESP32 (thường là 1970-01-01 hoặc 2016-01-01).
+ * Chờ SNTP sync: poll tối đa 5 giây (10×500ms) cho đến khi
+ * time() > 01/01/2021 (ngưỡng phân biệt RTC đã sync với giá trị mặc định
+ * từ boot — ESP32 thường boot với năm 1970 hoặc 2016).
+ * Nếu quá 5 giây chưa sync được thì bỏ qua, không block nữa.
  */
 static void sync_time(void)
 {
@@ -153,11 +120,11 @@ static void sync_time(void)
     for (int i = 0; i < 10; i++) {
         vTaskDelay(pdMS_TO_TICKS(500));
         time(&now);
-        if (now > 1609451200) break;  /* Kiểm tra thời gian > 01/01/2021 */
+        if (now > 1609451200) break;
     }
     time(&now);
     struct tm timeinfo;
-    localtime_r(&now, &timeinfo);     /* Chuyển đổi sang giờ địa phương (ICT) */
+    localtime_r(&now, &timeinfo);
     char strftime_buf[64];
     strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
     ESP_LOGI(TAG, "Current time: %s", strftime_buf);
@@ -166,28 +133,16 @@ static void sync_time(void)
 /* ===================== TIMER RETRY CALLBACK ===================== */
 
 /*
- * wifi_retry_timer_callback - Callback khi timer retry fire.
- *
- * Được gọi từ FreeRTOS timer (trong context của timer daemon task).
- *
- * Hành vi:
- *   1. Kiểm tra nếu vẫn chưa kết nối (s_wifi_connected == false)
- *   2. Nếu s_retry_num >= WIFI_MAX_RETRY: reset biến đếm (để retry vô hạn)
- *   3. Gọi esp_wifi_connect() để thử kết nối lại
- *   4. Tăng biến đếm s_retry_num
- *
- * Timer là one-shot, nên sau khi fire, nếu mất kết nối lần nữa,
- * DISCONNECTED event sẽ được gọi và tạo timer mới.
- *
- * Retry vô hạn: vì thiết bị IoT cần luôn cố gắng kết nối lại,
- * không bỏ cuộc sau N lần thử.
+ * Timer one-shot fire → thử kết nối lại.
+ * Retry vô hạn: IoT device không được phép bỏ cuộc — reset biến đếm
+ * mỗi khi chạm WIFI_MAX_RETRY để tránh overflow.
  */
 static void wifi_retry_timer_callback(TimerHandle_t xTimer)
 {
     (void)xTimer;
     if (!s_wifi_connected) {
         if (s_retry_num >= WIFI_MAX_RETRY) {
-            s_retry_num = 0;  /* Reset để retry vô hạn (vòng lặp mới) */
+            s_retry_num = 0;
         }
         ESP_LOGI(TAG, "WiFi retry, attempting reconnect...");
         esp_wifi_connect();
@@ -198,102 +153,66 @@ static void wifi_retry_timer_callback(TimerHandle_t xTimer)
 /* ===================== TRÌNH XỬ LÝ SỰ KIỆN WIFI ===================== */
 
 /*
- * wifi_event_handler - Xử lý tất cả sự kiện WiFi và IP.
+ * wifi_event_handler — Xử lý 4 sự kiện WiFi+IP theo mô hình event-driven.
  *
- * Hệ thống sự kiện của ESP-IDF: event_base phân loại nhóm sự kiện
- * (WIFI_EVENT, IP_EVENT), event_id là sự kiện cụ thể.
- *
- * Các sự kiện được xử lý:
- * ======================== NHÓM WIFI_EVENT ========================
+ * event_base phân biệt WIFI_EVENT vs IP_EVENT.
+ * event_id cho biết sự kiện cụ thể.
  *
  * WIFI_EVENT_STA_START:
- *   - WiFi Station đã khởi động (sau esp_wifi_start())
- *   - Hành vi: gọi esp_wifi_connect() để bắt đầu kết nối đến AP
- *   - Lưu ý: event này chỉ gọi MỘT LẦN duy nhất sau wifi_init_sta()
- *
- * WIFI_EVENT_STA_CONNECTED:
- *   - Kết nối vật lý đến AP thành công (đã có link layer)
- *   - Hành vi: đánh dấu s_wifi_connected = true, dừng retry timer
- *   - Lưu ý: chưa có IP (DHCP đang xử lý), chưa thể truy cập mạng
- *   - GOT_IP event sẽ đến sau khi DHCP hoàn tất
+ *   WiFi driver đã start. Chỉ gọi 1 lần. esp_wifi_connect() kick off kết nối đầu.
  *
  * WIFI_EVENT_STA_DISCONNECTED:
- *   - Mất kết nối với AP (do nhiều nguyên nhân: mất sóng, AP tắt, ...)
- *   - event_data chứa reason code (lý do mất kết nối)
- *   - Hành vi:
- *     a. Đánh dấu s_wifi_connected = false
- *     b. Dừng timer cũ (nếu có)
- *     c. Tạo timer mới (one-shot, 10s) để thử kết nối lại
- *     d. Khi timer fire -> wifi_retry_timer_callback -> esp_wifi_connect()
+ *   Mất kết nối (mất sóng, AP tắt, timeout...). reason code trong event_data.
+ *   Set connected=false → dừng timer cũ → tạo timer one-shot 10s → retry sau.
  *
- * ======================== NHÓM IP_EVENT ========================
+ * WIFI_EVENT_STA_CONNECTED:
+ *   Link-layer với AP thành công. Chưa có IP (DHCP chưa xong).
+ *   Set connected=true → stop retry timer → chờ GOT_IP.
  *
  * IP_EVENT_STA_GOT_IP:
- *   - ESP32 đã nhận được địa chỉ IP từ DHCP server
- *   - Đây là thời điểm có thể truy cập mạng (Internet)
- *   - Hành vi:
- *     a. In địa chỉ IP ra log
- *     b. Reset biến đếm retry
- *     c. Khởi tạo SNTP (initialize_sntp)
- *     d. Đợi 2 giây cho SNTP poll lần đầu
- *     e. Đồng bộ thời gian (sync_time)
+ *   DHCP thành công, đã có IP. start SNTP + delay 2s + sync time.
+ *   Từ đây có thể truy cập Internet.
  */
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data) {
 
-    /* ----- WIFI_EVENT_STA_START: WiFi Station đã khởi động ----- */
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         ESP_LOGI(TAG, "WiFi STA started");
-        esp_wifi_connect();  /* Bắt đầu quá trình kết nối */
+        esp_wifi_connect();
 
-    /* ----- WIFI_EVENT_STA_DISCONNECTED: Mất kết nối ----- */
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         wifi_event_sta_disconnected_t *disc_event = (wifi_event_sta_disconnected_t *)event_data;
         ESP_LOGW(TAG, "WiFi disconnected: reason=%d", disc_event->reason);
         s_wifi_connected = false;
 
-        /* Dừng timer cũ nếu đang chạy */
         if (s_retry_timer != NULL) {
             xTimerStop(s_retry_timer, 0);
         }
 
-        /*
-         * Tạo timer retry one-shot (pdFALSE) với thời gian WIFI_RETRY_INTERVAL_MS.
-         * Timer này sẽ gọi wifi_retry_timer_callback sau 10 giây.
-         * Nếu timer đã tồn tại (từ lần mất kết nối trước), không tạo lại.
-         */
         if (s_retry_timer == NULL) {
             s_retry_timer = xTimerCreate("wifi_retry",
                                          pdMS_TO_TICKS(WIFI_RETRY_INTERVAL_MS),
-                                         pdFALSE,  /* One-shot: chỉ fire 1 lần */
+                                         pdFALSE,
                                          NULL,
                                          wifi_retry_timer_callback);
         }
         if (s_retry_timer != NULL) {
-            xTimerStart(s_retry_timer, 0);  /* Bắt đầu đếm thời gian */
+            xTimerStart(s_retry_timer, 0);
         }
 
-    /* ----- WIFI_EVENT_STA_CONNECTED: Kết nối vật lý thành công ----- */
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
         ESP_LOGI(TAG, "WiFi connected to AP");
         s_wifi_connected = true;
         s_retry_num = 0;
-        /* Hủy timer retry (không cần retry nữa) */
         if (s_retry_timer != NULL) {
             xTimerStop(s_retry_timer, 0);
         }
 
-    /* ----- IP_EVENT_STA_GOT_IP: Đã có địa chỉ IP ----- */
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *ip_event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "WiFi CONNECTED - IP: " IPSTR, IP2STR(&ip_event->ip_info.ip));
         s_retry_num = 0;
-        /* Khởi tạo SNTP để đồng bộ thời gian */
         initialize_sntp();
-        /*
-         * Đợi 2 giây cho SNTP có thời gian poll server lần đầu.
-         * sync_time() sẽ kiểm tra và đợi thêm nếu cần.
-         */
         vTaskDelay(pdMS_TO_TICKS(2000));
         sync_time();
     }
@@ -302,82 +221,53 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
 /* ===================== KHỞI TẠO WIFI ===================== */
 
 /*
- * wifi_init_sta - Khởi tạo WiFi ở chế độ Station.
+ * wifi_init_sta — Khởi tạo WiFi Station.
  *
- * Quy trình khởi tạo (theo thứ tự bắt buộc của ESP-IDF WiFi stack):
+ * Trình tự bắt buộc của ESP-IDF:
+ *   1-3: netif + event loop + WiFi netif
+ *   4:   set timezone (trước NTP)
+ *   5:   WiFi driver init
+ *   6:   register event handlers (WIFI_EVENT + IP_EVENT)
+ *   7:   config SSID/PASS
+ *   8-11: set mode, set config, start, set TX power
  *
- *   1. esp_netif_init()              - Khởi tạo TCP/IP network interface
- *   2. esp_event_loop_create_default() - Tạo event loop mặc định
- *   3. esp_netif_create_default_wifi_sta() - Tạo netif cho WiFi Station
- *   4. set_timezone()                - Đặt múi giờ ICT (trước NTP)
- *   5. esp_wifi_init(&cfg)           - Khởi tạo WiFi driver với cấu hình mặc định
- *   6. Đăng ký event handlers        - WIFI_EVENT và IP_EVENT
- *   7. Cấu hình WiFi (SSID, PASS, auth mode)
- *   8. esp_wifi_set_mode(WIFI_MODE_STA) - Đặt chế độ Station
- *   9. esp_wifi_set_config()         - Áp dụng cấu hình SSID/PASS
- *  10. esp_wifi_start()              - Khởi động WiFi
- *  11. esp_wifi_set_max_tx_power()   - Đặt công suất phát tối đa
- *
- * Sau khi esp_wifi_start(), event WIFI_EVENT_STA_START sẽ được gọi,
- * và trong event handler đó, esp_wifi_connect() được gọi để kết nối.
- *
- * Lưu ý:
- *   - SSID và PASS được lấy từ #define trong wifi.h
- *   - Nên chuyển SSID/PASS vào sdkconfig hoặc NVS sau này
- *   - Công suất phát MAX_TX_POWER = 40 dBm (tối đa ESP32 là 20 dBm,
- *     40 dBm sẽ được ESP32 tự động giới hạn về mức tối đa cho phép)
+ * Sau esp_wifi_start(), event WIFI_EVENT_STA_START → esp_wifi_connect()
+ * được gọi tự động trong event handler.
  */
 void wifi_init_sta(void) {
-    /* Bước 1-3: Khởi tạo network interface và event loop */
     esp_netif_init();
     esp_event_loop_create_default();
     esp_netif_create_default_wifi_sta();
 
-    /* Bước 4: Đặt múi giờ Việt Nam (ICT) trước khi có mạng */
     set_timezone();
 
-    /* Bước 5: Khởi tạo WiFi driver với cấu hình mặc định */
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&cfg);
 
-    /* Bước 6: Đăng ký event handlers */
     esp_event_handler_instance_t handler_instance;
-    /*
-     * Đăng ký toàn bộ sự kiện WiFi (từ STA_START đến STA_DISCONNECTED)
-     * dùng ESP_EVENT_ANY_ID để bắt tất cả event_id của WIFI_EVENT.
-     */
     esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                                          &wifi_event_handler, NULL, &handler_instance);
-    /*
-     * Đăng ký riêng sự kiện GOT_IP từ IP_EVENT.
-     * Lưu ý: dùng cùng handler nhưng handler_instance sẽ bị ghi đè.
-     * Trong thực tế, nếu cần phân biệt, nên dùng 2 instance khác nhau.
-     */
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
                                          &wifi_event_handler, NULL, &handler_instance);
 
-    /* Bước 7: Cấu hình WiFi */
     wifi_config_t wifi_config = {
         .sta = {
-            .threshold.authmode = WIFI_AUTH_WPA2_PSK,  /* Chỉ kết nối AP có WPA2 */
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
     };
 
-    /* Xóa bộ đệm SSID và Password trước khi copy (an toàn hơn) */
     memset(wifi_config.sta.ssid, 0, sizeof(wifi_config.sta.ssid));
     memset(wifi_config.sta.password, 0, sizeof(wifi_config.sta.password));
 
-    /* Copy SSID và Password từ #define */
     strncpy((char *)wifi_config.sta.ssid, WIFI_SSID, sizeof(wifi_config.sta.ssid) - 1);
     strncpy((char *)wifi_config.sta.password, WIFI_PASS, sizeof(wifi_config.sta.password) - 1);
 
     ESP_LOGI(TAG, "WiFi SSID: [%s]", (char*)wifi_config.sta.ssid);
 
-    /* Bước 8-11: Áp dụng cấu hình và khởi động WiFi */
-    esp_wifi_set_mode(WIFI_MODE_STA);       /* Chế độ Station (client) */
-    esp_wifi_set_config(WIFI_IF_STA, &wifi_config); /* Áp dụng SSID/PASS */
-    esp_wifi_start();                       /* Khởi động WiFi */
-    esp_wifi_set_max_tx_power(MAX_TX_POWER); /* Đặt công suất phát */
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    esp_wifi_start();
+    esp_wifi_set_max_tx_power(MAX_TX_POWER);
 
     ESP_LOGI(TAG, "WiFi initialized");
 }

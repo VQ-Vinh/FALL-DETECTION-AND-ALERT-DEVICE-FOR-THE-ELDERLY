@@ -1,22 +1,13 @@
-/**
- * @file telegram.h
- * @brief Header file cho module Telegram Bot - gửi thông báo qua Telegram
+/*
+ * telegram.h - API gửi thông báo Telegram bất đồng bộ
  *
- * ===================== MỤC ĐÍCH =====================
- * Module này cung cấp API để gửi thông báo đến một chat Telegram cụ thể
- * thông qua Telegram Bot API (https://core.telegram.org/bots/api).
- * Sử dụng cơ chế queue-based async để không block các task khác.
+ * Tất cả hàm telegram_send_*() đều non-blocking: chỉ đẩy message vào
+ * FreeRTOS queue, background task riêng sẽ gửi thực sự qua HTTP.
+ * Xem telegram.c để hiểu cơ chế queue chi tiết.
  *
- * ===================== CÁC LOẠI THÔNG BÁO =====================
- * - MSG_STARTUP:    Gửi khi thiết bị khởi động (xác nhận hệ thống hoạt động)
- * - MSG_FALL_ALERT: Cảnh báo khi phát hiện người bị ngã (khẩn cấp)
- * - MSG_SOS_ALERT:  Cảnh báo khi nhấn nút khẩn cấp SOS
- * - MSG_CANCEL_ALERT: Thông báo khi hủy báo động (người dùng an toàn)
- *
- * ===================== CÁCH SỬ DỤNG =====================
- * 1. Gọi telegram_init(bot_token, chat_id) ở startup
- * 2. Gọi telegram_send_*() ở các sự kiện tương ứng
- * 3. Hàm không blocking - chỉ đẩy message vào queue
+ * Luồng dùng:
+ *   boot → telegram_init(token, chat_id)
+ *   sự kiện → telegram_send_fall_alert() / telegram_send_sos_alert() / ...
  */
 
 #ifndef TELEGRAM_H
@@ -32,55 +23,20 @@ extern "C" {
 /*
  * telegram_init - Khởi tạo module Telegram.
  *
- * @param bot_token: Token Bot từ BotFather (tạo bot tại @BotFather trên Telegram).
- *                   Định dạng: "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz-1234567"
- * @param chat_id:   ID của chat/người nhận. Có thể lấy từ @userinfobot hoặc
- *                   bằng cách gọi getUpdates sau khi nhắn tin cho bot.
- *                   Định dạng: "1234567890" (số nguyên dạng chuỗi)
- *
- * Hành vi:
- *   - Lưu token và chat_id vào bộ nhớ static
- *   - Tạo FreeRTOS queue (4 phần tử) và background task (telegram_task)
- *   - Gọi hàm này một lần duy nhất ở startup
+ * Lưu token & chat_id, tạo queue (4 phần tử) và background task.
+ * bot_token lấy từ @BotFather trên Telegram.
+ * chat_id có thể lấy từ @userinfobot.
+ * Gọi DUY NHẤT một lần ở startup.
  */
 void telegram_init(const char *bot_token, const char *chat_id);
 
-/*
- * telegram_send_startup - Gửi tin nhắn khởi động.
- * Dùng để xác nhận thiết bị đã khởi động thành công.
- * Non-blocking: message được đẩy vào queue, gửi sau trong background task.
- */
-void telegram_send_startup(void);
+/* Non-blocking: push message vào queue, gửi thực tế qua background task */
+void telegram_send_startup(void);    /* Gửi khi boot xong */
+void telegram_send_fall_alert(void); /* Gửi khi phát hiện ngã (từ MPU6050) */
+void telegram_send_sos_alert(void);  /* Gửi khi nhấn nút SOS */
+void telegram_send_cancel_alert(void); /* Gửi khi hủy báo động */
 
-/*
- * telegram_send_fall_alert - Gửi cảnh báo phát hiện ngã.
- * Gọi từ module MPU6050 khi phát hiện người bị ngã.
- * Non-blocking: message được đẩy vào queue, gửi sau trong background task.
- */
-void telegram_send_fall_alert(void);
-
-/*
- * telegram_send_sos_alert - Gửi cảnh báo SOS.
- * Gọi khi nút khẩn cấp được nhấn.
- * Non-blocking: message được đẩy vào queue, gửi sau trong background task.
- */
-void telegram_send_sos_alert(void);
-
-/*
- * telegram_send_cancel_alert - Gửi thông báo hủy báo động.
- * Gọi khi người dùng xác nhận an toàn (hủy báo động sai).
- * Non-blocking: message được đẩy vào queue, gửi sau trong background task.
- */
-void telegram_send_cancel_alert(void);
-
-/*
- * telegram_is_initialized - Kiểm tra trạng thái khởi tạo.
- *
- * @return: true nếu telegram_init() đã được gọi và khởi tạo thành công,
- *          false nếu chưa khởi tạo.
- *
- * Dùng để kiểm tra trước khi gọi các hàm telegram_send_*().
- */
+/* true nếu telegram_init() đã gọi thành công. Kiểm tra trước khi send. */
 bool telegram_is_initialized(void);
 
 #ifdef __cplusplus
