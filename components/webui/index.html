@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1.0'>
+<title>Fall Detection Monitor</title>
+<link rel='stylesheet' href='/style.css'>
+</head>
+<body>
+<div class='container' id='container'>
+  <div class='topbar'>
+    <div class='brand'>FALL DETECTION</div>
+    <div class='topbar-right'>
+      <span class='wifi-wrap'><span class='wifi-dot' id='wifiDot'></span><span id='wifi'>...</span></span>
+    </div>
+  </div>
+
+  <div class='fall-section'>
+    <div class='fall-label'>Fall State</div>
+    <div class='fall-badge' id='fall_state'>IDLE</div>
+  </div>
+
+  <div class='sensor-grid' id='sensorGrid'>
+    <div class='sensor-card card-accel'><label>Acceleration</label><div class='value'><span id='accel_g'>0.00</span><span class='unit'>g</span></div></div>
+    <div class='sensor-card card-gyro'><label>Gyroscope</label><div class='value'><span id='gyro'>0</span><span class='unit'>deg/s</span></div></div>
+    <div class='sensor-card card-roll'><label>Roll</label><div class='value'><span id='roll'>0.0</span><span class='unit'>deg</span></div></div>
+    <div class='sensor-card card-pitch'><label>Pitch</label><div class='value'><span id='pitch'>0.0</span><span class='unit'>deg</span></div></div>
+  </div>
+</div>
+<script src='/app.js'></script>
+</body>
+</html>

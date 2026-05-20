@@ -19,7 +19,7 @@
 
 /* Gửi khi boot hoàn tất: xác nhận thiết bị đã online, sẵn sàng giám sát */
 #define MSG_STARTUP \
-    "Thiết bị đã khởi động.\n Sẵn sàng giám sát người thân!"
+    "Thiết bị đã khởi động.\nSẵn sàng giám sát người thân!"
 
 /* Gửi khi thuật toán phát hiện té ngã. Tin nhắn quan trọng nhất — cần IN HOA để gây chú ý */
 #define MSG_FALL_ALERT \

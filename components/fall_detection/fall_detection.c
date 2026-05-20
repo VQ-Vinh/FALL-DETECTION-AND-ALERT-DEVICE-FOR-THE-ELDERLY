@@ -259,7 +259,7 @@ void fall_detection_update(float accel_g, float gyro_dps, float pitch, float rol
             case STATE_WAIT_LIE_DOWN: {
                 if (max_tilt >= config.lying_angle_threshold) {
                     // Gyro thấp? Dùng raw_gyro để phát hiện cựa quậy tức thời
-                    if (gyro_dps < 20.0f) {
+                    if (gyro_dps < 50.0f) {
                         if (stable_start == 0) {
                             stable_start = xTaskGetTickCount();
                         } else if ((xTaskGetTickCount() - stable_start) * portTICK_PERIOD_MS >= config.wait_lie_down_time) {
