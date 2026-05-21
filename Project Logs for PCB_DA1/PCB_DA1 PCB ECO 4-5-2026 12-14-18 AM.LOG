@@ -1,0 +1,107 @@
+Added Component: Designator=*(Module_TP4056)
+Added Component: Designator=BZ1(BUZZER)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = ""; VariantName = "[No Variations]"
+Added Component: Designator=D1(LED 5MM - RED)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = ""; VariantName = "[No Variations]"
+Added Component: Designator=P1(HDR/Terminal/2/5mm)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = ""; VariantName = "[No Variations]"
+Added Component: Designator=Q1(TO92-123)
+Add component (AddParameter): Name = "Value"; Value = "C1815"; VariantName = "[No Variations]"
+Added Component: Designator=R1(R 1/4W/300)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = ""; VariantName = "[No Variations]"
+Added Component: Designator=R2(R 1/4W/300)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = ""; VariantName = "[No Variations]"
+Added Component: Designator=S1(SS12D10)
+Add component (AddParameter): Name = "JLCPCB PN"; Value = "C2887259"; VariantName = "[No Variations]"
+Added Component: Designator=S2(PUSH_BUTTON_6X6)
+Add component (AddParameter): Name = "JLCPCB PN"; Value = "C255811"; VariantName = "[No Variations]"
+Added Component: Designator=U1(MODULE_ESP32-C3_SUPERMINI_TH)
+Add component (AddParameter): Name = "Check_prices"; Value = "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_TH/Espressif+Systems/view-part/?ref=eda"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "MF"; Value = "Espressif Systems"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "MP"; Value = "ESP32-C3 SuperMini_TH"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Package"; Value = "Package"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SnapEDA_Link"; Value = "https://www.snapeda.com/parts/ESP32-C3%20SuperMini_TH/Espressif+Systems/view-part/?ref=snap"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Value"; Value = ""; VariantName = "[No Variations]"
+Added Component: Designator=U2(MODULE_GY-521)
+Add component (AddParameter): Name = "Check_prices"; Value = "https://www.snapeda.com/parts/GY-521/GODREAM+FORDREAM+CO.%252C+LIMITED/view-part/?ref=eda"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "MF"; Value = "GODREAM FORDREAM CO., LIMITED"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "MP"; Value = "GY-521"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Package"; Value = "Package"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SnapEDA_Link"; Value = "https://www.snapeda.com/parts/GY-521/GODREAM+FORDREAM+CO.%252C+LIMITED/view-part/?ref=snap"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Value"; Value = ""; VariantName = "[No Variations]"
+Added Pin To Net: NetName=3V7 Pin=*-3
+Added Pin To Net: NetName=3V7 Pin=BZ1-1
+Added Pin To Net: NetName=3V7 Pin=U1-5V
+Added Pin To Net: NetName=3V7 Pin=U2-VCC
+Added Net: Name=3V7
+Added Pin To Net: NetName=BUTTON Pin=S2-1
+Added Pin To Net: NetName=BUTTON Pin=S2-1
+Added Pin To Net: NetName=BUTTON Pin=U1-2
+Added Net: Name=BUTTON
+Added Pin To Net: NetName=BUZ Pin=R2-1
+Added Pin To Net: NetName=BUZ Pin=U1-0
+Added Net: Name=BUZ
+Added Pin To Net: NetName=GND Pin=*-6
+Added Pin To Net: NetName=GND Pin=D1-2
+Added Pin To Net: NetName=GND Pin=Q1-1
+Added Pin To Net: NetName=GND Pin=S2-2
+Added Pin To Net: NetName=GND Pin=S2-2
+Added Pin To Net: NetName=GND Pin=U1-G
+Added Pin To Net: NetName=GND Pin=U2-AD0
+Added Pin To Net: NetName=GND Pin=U2-GND
+Added Net: Name=GND
+Added Pin To Net: NetName=LED Pin=R1-1
+Added Pin To Net: NetName=LED Pin=U1-1
+Added Net: Name=LED
+Added Pin To Net: NetName=Net*_4 Pin=*-4
+Added Pin To Net: NetName=Net*_4 Pin=S1-2
+Added Net: Name=Net*_4
+Added Pin To Net: NetName=Net*_5 Pin=*-5
+Added Pin To Net: NetName=Net*_5 Pin=P1-2
+Added Net: Name=Net*_5
+Added Pin To Net: NetName=NetBZ1_2 Pin=BZ1-2
+Added Pin To Net: NetName=NetBZ1_2 Pin=Q1-3
+Added Net: Name=NetBZ1_2
+Added Pin To Net: NetName=NetD1_1 Pin=D1-1
+Added Pin To Net: NetName=NetD1_1 Pin=R1-2
+Added Net: Name=NetD1_1
+Added Pin To Net: NetName=NetP1_1 Pin=P1-1
+Added Pin To Net: NetName=NetP1_1 Pin=S1-1
+Added Net: Name=NetP1_1
+Added Pin To Net: NetName=NetQ1_2 Pin=Q1-2
+Added Pin To Net: NetName=NetQ1_2 Pin=R2-2
+Added Net: Name=NetQ1_2
+Added Pin To Net: NetName=SCL Pin=U1-9
+Added Pin To Net: NetName=SCL Pin=U2-SCL
+Added Net: Name=SCL
+Added Pin To Net: NetName=SDA Pin=U1-8
+Added Pin To Net: NetName=SDA Pin=U2-SDA
+Added Net: Name=SDA
+Added Class: Name=Sch_DA1
+Added Rule: Name=Schematic Supply Nets
+Added Rule: Name=Schematic Supply Nets_1

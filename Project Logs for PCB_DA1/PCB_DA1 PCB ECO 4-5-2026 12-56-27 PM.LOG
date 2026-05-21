@@ -1,0 +1,13 @@
+Removed Pin From Net: NetName=3V7 Pin=*-3
+Removed Pin From Net: NetName=Net*_4 Pin=*-4
+Removed Pin From Net: NetName=Net*_5 Pin=*-5
+Removed Pin From Net: NetName=GND Pin=*-6
+Added Component: Designator=*(Module_TP4056)
+Added Pin To Net: NetName=3V7 Pin=*-3
+Added Pin To Net: NetName=Net*_4 Pin=*-4
+Added Pin To Net: NetName=Net*_5 Pin=*-5
+Added Pin To Net: NetName=GND Pin=*-6
+Added Member To Class: ClassName=Sch_DA1 Member=Component * Module_TP4056
+Added Member To Class: ClassName=Sch_DA1 Member=Component H101 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component H101 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component H101 Screw Hole

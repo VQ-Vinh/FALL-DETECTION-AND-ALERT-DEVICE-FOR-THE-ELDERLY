@@ -1,0 +1,17 @@
+Change Component Designator: OldDesignator=H101 NewDesignator=H1
+Change Component Designator: OldDesignator=H101 NewDesignator=H2
+Change Component Designator: OldDesignator=H101 NewDesignator=H3
+Change Component Designator: OldDesignator=H101 NewDesignator=H4
+Added Component: Designator=S3(PUSH_BUTTON_6X6)
+Add component (AddParameter): Name = "JLCPCB PN"; Value = "C255811"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=GND Pin=S3-2
+Added Pin To Net: NetName=GND Pin=S3-2
+Added Pin To Net: NetName=RESET Pin=S3-1
+Added Pin To Net: NetName=RESET Pin=S3-1
+Added Pin To Net: NetName=RESET Pin=U1-3
+Added Net: Name=RESET
+Added Member To Class: ClassName=Sch_DA1 Member=Component H1 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component H3 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component H4 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component S3 BUTTON
+Added Member To Class: ClassName=Sch_DA1 Member=Component U2 MPU-6050

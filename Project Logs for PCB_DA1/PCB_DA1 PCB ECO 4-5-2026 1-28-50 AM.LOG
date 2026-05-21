@@ -1,0 +1,40 @@
+Added Component: Designator=H101(SCREW/3.2/7.0/M)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK DESC"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = "NO-BOM"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "UNIT PRICE"; Value = "0"; VariantName = "[No Variations]"
+Added Component: Designator=H101(SCREW/3.2/7.0/M)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK DESC"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = "NO-BOM"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "UNIT PRICE"; Value = "0"; VariantName = "[No Variations]"
+Added Component: Designator=H101(SCREW/3.2/7.0/M)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK DESC"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = "NO-BOM"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "UNIT PRICE"; Value = "0"; VariantName = "[No Variations]"
+Added Component: Designator=H101(SCREW/3.2/7.0/M)
+Add component (AddParameter): Name = "BRAND"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PACKAGE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "PART NO"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK CODE"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "STOCK DESC"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "SUPPLIER"; Value = ""; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "TYPE"; Value = "NO-BOM"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "UNIT PRICE"; Value = "0"; VariantName = "[No Variations]"
+Added Member To Class: ClassName=Sch_DA1 Member=Component H101 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component H101 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component H101 Screw Hole
+Added Member To Class: ClassName=Sch_DA1 Member=Component H101 Screw Hole

@@ -1,0 +1,8 @@
+Added Pin To Net: NetName=ALERT Pin=S3-1
+Added Pin To Net: NetName=ALERT Pin=S3-1
+Added Pin To Net: NetName=ALERT Pin=U1-6
+Added Net: Name=ALERT
+Added Pin To Net: NetName=CANCEL Pin=S2-1
+Added Pin To Net: NetName=CANCEL Pin=S2-1
+Added Pin To Net: NetName=CANCEL Pin=U1-5
+Added Net: Name=CANCEL

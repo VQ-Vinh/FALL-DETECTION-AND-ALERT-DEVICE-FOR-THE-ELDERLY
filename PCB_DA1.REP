@@ -1,0 +1,73 @@
+Teardrop Report PCB_DA1.PcbDoc
+On 4/21/2026 at 3:08:39 PM
+
+Pads visited                : 60
+
+Vias visited                : 0
+
+Pad teardrops failed : 0
+
+Pad BZ1-2(119mm,64.63mm) on Multi-Layer
+Pad BZ1-1(119mm,72.25mm) on Multi-Layer
+Pad Q1-3(113.29mm,59mm) on Multi-Layer
+Pad C1-1(116mm,85.52mm) on Multi-Layer
+Pad U1-5V(109.24mm,85.49mm) on Multi-Layer
+Pad *-3(56mm,77.5mm) on Multi-Layer
+Pad U2-VCC(88.08mm,62.11mm) on Multi-Layer
+Pad U1-5(94mm,85.49mm) on Multi-Layer
+Pad U1-6(94mm,82.95mm) on Multi-Layer
+Pad U1-7(94mm,80.41mm) on Multi-Layer
+Pad U1-10(94mm,72.79mm) on Multi-Layer
+Pad U1-20(94mm,70.25mm) on Multi-Layer
+Pad U1-21(94mm,67.71mm) on Multi-Layer
+Pad U1-0(109.24mm,67.71mm) on Multi-Layer
+Pad U1-1(109.24mm,70.25mm) on Multi-Layer
+Pad U1-2(109.24mm,72.79mm) on Multi-Layer
+Pad U1-3(109.24mm,75.33mm) on Multi-Layer
+Pad U1-4(109.24mm,77.87mm) on Multi-Layer
+Pad U1-3.3(109.24mm,80.41mm) on Multi-Layer
+Pad U1-9(94mm,75.33mm) on Multi-Layer
+Pad U1-8(94mm,77.87mm) on Multi-Layer
+Pad U1-G(109.24mm,82.95mm) on Multi-Layer
+Pad H4-1(122.75mm,91.75mm) on Multi-Layer
+Pad H3-1(49.5mm,53.5mm) on Multi-Layer
+Pad H2-1(122.75mm,53.25mm) on Multi-Layer
+Pad H1-1(49.5mm,91.5mm) on Multi-Layer
+Pad U2-XDA(88.08mm,72.27mm) on Multi-Layer
+Pad U2-XCL(88.08mm,74.81mm) on Multi-Layer
+Pad U2-INT(88.08mm,79.89mm) on Multi-Layer
+Pad U2-(76.32mm,62.94mm) on Multi-Layer
+Pad U2-(76.32mm,79.06mm) on Multi-Layer
+Pad U2-SDA(88.08mm,69.73mm) on Multi-Layer
+Pad U2-SCL(88.08mm,67.19mm) on Multi-Layer
+Pad U2-GND(88.08mm,64.65mm) on Multi-Layer
+Pad U2-AD0(88.08mm,77.35mm) on Multi-Layer
+Pad S1-1(65.55mm,83.15mm) on Multi-Layer
+Pad S1-3(55.95mm,83.15mm) on Multi-Layer
+Pad S1-2(60.75mm,83.15mm) on Multi-Layer
+Pad C1-2(116mm,82.98mm) on Multi-Layer
+Pad Q1-1(108.21mm,59mm) on Multi-Layer
+Pad D1-2(83.25mm,57.04mm) on Multi-Layer
+Pad S2-2(82.25mm,91.5mm) on Multi-Layer
+Pad S2-2(82.25mm,85mm) on Multi-Layer
+Pad *-6(70mm,77.5mm) on Multi-Layer
+Pad S3-2(73mm,91.5mm) on Multi-Layer
+Pad S3-2(73mm,85mm) on Multi-Layer
+Pad S3-1(77.5mm,85mm) on Multi-Layer
+Pad S3-1(77.5mm,91.5mm) on Multi-Layer
+Pad Q1-2(110.75mm,59mm) on Multi-Layer
+Pad *-5(67.46mm,77.5mm) on Multi-Layer
+Pad *-4(58.54mm,77.5mm) on Multi-Layer
+Pad *-2(70mm,54.5mm) on Multi-Layer
+Pad *-1(56mm,54.5mm) on Multi-Layer
+Pad S2-1(86.75mm,85mm) on Multi-Layer
+Pad S2-1(86.75mm,91.5mm) on Multi-Layer
+Pad D1-1(83.25mm,54.5mm) on Multi-Layer
+Pad R2-1(103mm,54.5mm) on Multi-Layer
+Pad R2-2(110.62mm,54.5mm) on Multi-Layer
+Pad R1-1(97.62mm,54.5mm) on Multi-Layer
+Pad R1-2(90mm,54.5mm) on Multi-Layer
+
+Via teardrops failed : 0
+
+

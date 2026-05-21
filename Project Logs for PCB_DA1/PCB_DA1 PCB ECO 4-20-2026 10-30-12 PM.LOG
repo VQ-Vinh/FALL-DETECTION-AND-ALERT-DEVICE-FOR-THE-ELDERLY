@@ -1,0 +1,4 @@
+Change Component Footprint: Designator=S1 Old Footprint=SS12D10 New Footprint=SS12D06
+Change Component Comment : Designator=S1 Old Comment=SS12D10 New Comment=SS12D06
+Change component parameters: Designator = "S1" ("S1"); Footprint = "SS12D10"; UniqueID = "\CITHAWEG" ("\CITHAWEG")
+Added Member To Class: ClassName=Sch_DA1 Member=Component H2 Screw Hole
