@@ -58,14 +58,15 @@ static const char *TAG = "FALL_DETECT";
 // Mutex bảo vệ current_state khỏi race condition giữa mpu6050_task và timer callbacks
 static SemaphoreHandle_t s_state_mutex = NULL;
 
-// Cấu hình mặc định — tối ưu cho người cao tuổi (ngã chậm hơn, va chạm yếu hơn, nằm lâu hơn)
+// Cấu hình mặc định — tối ưu cho người cao tuổi, thiết bị đeo thắt lưng
 //   filter_alpha = 0.5       → cân bằng giữa lọc nhiễu và phản ứng nhanh
-//   freefall    = 0.5g       → ngưỡng phát hiện rơi tự do
-//   impact      = 2.0g       → ngưỡng phát hiện va chạm
-//   lying_angle = 70°        → phân tách "ngồi" (~45-60°) và "nằm" (~90°)
-//   timeout_ff  = 150ms      → đủ xác nhận rơi, không quá dài (tránh nhiễu lắc tay)
+//   freefall    = 0.5g       → ngưỡng phát hiện rơi tự do (≤ 0.5g là rơi)
+//   impact      = 2.0g       → ngưỡng phát hiện va chạm (≥ 2.0g là đập mạnh)
+//   lying_angle = 70°        → phân tách ngồi (~45-60°) và nằm (~90°)
+//   timeout_ff  = 150ms      → đủ xác nhận rơi, không quá dài (tránh nhiễu lắc)
 //   timeout_imp = 1000ms     → chờ cảm biến ổn định sau chấn động
-//   wait_lie    = 3500ms     → xác nhận nạn nhân nằm yên, không cử động
+//   wait_lie    = 5000ms     → xác nhận nằm yên 5s, lọc nhiễu cựa quậy ngắn
+//   gyro_lie    = 50°/s      → nếu gyro ≥ 50° → có cựa quậy, reset bộ đếm
 static fall_detection_config_t default_config = {
     .filter_alpha = 0.5f,
     .accel_freefall_abs = 0.5f,
@@ -73,7 +74,7 @@ static fall_detection_config_t default_config = {
     .lying_angle_threshold = 70.0f,
     .timeout_freefall = 150,
     .timeout_impact_check = 1000,
-    .wait_lie_down_time = 3500,
+    .wait_lie_down_time = 5000,
 };
 
 // State machine — các biến static, chỉ truy cập trong file này
@@ -255,15 +256,15 @@ void fall_detection_update(float accel_g, float gyro_dps, float pitch, float rol
             case STATE_IMPACT:
                 break;
 
-            // WAIT_LIE_DOWN: xác nhận nằm yên 3.5s với 3 điều kiện
+            // WAIT_LIE_DOWN: xác nhận nằm yên 5s, 3 điều kiện
             case STATE_WAIT_LIE_DOWN: {
                 if (max_tilt >= config.lying_angle_threshold) {
-                    // Gyro thấp? Dùng raw_gyro để phát hiện cựa quậy tức thời
+                    // Gyro < 50°/s → nạn nhân yên tĩnh (tăng từ 20 lên 50 sau test thực tế)
                     if (gyro_dps < 50.0f) {
                         if (stable_start == 0) {
                             stable_start = xTaskGetTickCount();
                         } else if ((xTaskGetTickCount() - stable_start) * portTICK_PERIOD_MS >= config.wait_lie_down_time) {
-                            // Đủ 3.5s nằm yên + accel ~1g → xác nhận ngã thật
+                            // Đủ 5s nằm yên + accel ~1g → xác nhận ngã thật
                             if (fabsf(filtered_accel - 1.0f) < 0.3f) {
                                 current_state = STATE_SOS_TRIGGERED;
                                 alert_triggered = true;
@@ -284,7 +285,7 @@ void fall_detection_update(float accel_g, float gyro_dps, float pitch, float rol
                             }
                         }
                     } else {
-                        // Có chuyển động → reset bộ đếm, yêu cầu 3.5s liên tục không ngắt quãng
+                        // Gyro ≥ 50°/s → có chuyển động → reset bộ đếm, yêu cầu 5s liên tục không ngắt quãng
                         stable_start = 0;
                     }
                 } else {
